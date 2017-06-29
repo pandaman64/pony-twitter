@@ -74,6 +74,31 @@ actor Twitter
             client(consume request, handler)
         end
 
+    be stream_user() =>
+        let method = "GET"
+        let url: String val = recover
+            let url_cstring = @oauth_sign_url2(
+                "https://userstream.twitter.com/1.1/user.json".cstring(),
+                Pointer[Pointer[U8]],
+                0,
+                method.cstring(),
+                _c_key.cstring(),
+                _c_sec.cstring(),
+                _t_key.cstring(),
+                _t_sec.cstring()
+            )
+            String.from_cstring(consume url_cstring)
+        end
+
+        try
+            let client = HTTPClient(_auth, _ssl_context)
+            let url' = URL.build(url)
+            let handler = recover val this~create_handler(_out) end
+            let request = Payload.request(method, url')
+            request("User-Agent") = "Pony-Twitter"
+            client(consume request, handler)
+        end
+
     fun tag create_handler(out: StdStream, session: HTTPSession tag): HTTPHandler =>
         _HTTPHandler(out)
 
@@ -88,15 +113,17 @@ actor Main
             let t_sec = recover val file.line() end
 
             let twitter = Twitter(c_key, c_sec, t_key, t_sec, env.root as AmbientAuth, env.out)
-            twitter.statuses_update("popopopony")
+            twitter.stream_user()
         end
 
    
 class _HTTPHandler
     let _out: StdStream
+    var _buffer: String ref
 
     new create(out: StdStream) =>
         _out = out
+        _buffer = recover "".clone() end
 
     fun ref apply(payload: Payload val): Any tag =>
         _out.print(payload.status.string())
@@ -114,7 +141,38 @@ class _HTTPHandler
         object is Any end
         
     fun ref chunk(data: (String val | Array[U8 val] val)) =>
-        _out.print(data)
+        _out.print("chunk")
+        _buffer.append(data)
+
+        try
+            _out.print("cutting the buffer")
+            let start_index: ISize = _buffer.find("{")
+            var end_index: ISize = start_index
+            var count: I32 = 0
+            while end_index.usize() < _buffer.size() do
+                if _buffer.at_offset(end_index) == '{' then
+                    _out.print("found {")
+                    count = count + 1
+                elseif _buffer.at_offset(end_index) == '}' then
+                    _out.print("found }")
+                    count = count - 1
+                end
+                end_index = end_index + 1
+            end
+            if count == 0 then
+                _out.print("hey matching {}")
+                // range is half open
+                let json = _buffer.substring(start_index, end_index + 1)
+                _out.print("substringed")
+                _buffer.trim_in_place((end_index + 1).usize(), _buffer.size())
+                _out.print("trimmed")
+                _out.print(consume json)
+            end
+        end
+
+        let buffer_copy = _buffer.clone()
+        _out.print("history")
+        _out.print(consume buffer_copy)
 
     fun ref finished() =>
         _out.print("finish!")
