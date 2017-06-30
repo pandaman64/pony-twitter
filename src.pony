@@ -124,68 +124,17 @@ class _HTTPHandler
     new create(out: StdStream) =>
         _out = out
         _buffer = recover "".clone() end
-
-    fun ref apply(payload: Payload val): Any tag =>
-        _out.print(payload.status.string())
-        _out.print(payload.method)
-        match payload.transfer_mode
-        | ChunkedTransfer =>
-            try
-                for b in payload.body().values() do
-                    _out.print("hig")
-                    _out.print(b)
-                end
-            end
-        end
-        _out.print("payload")
-        object is Any end
+    
+    fun ref apply(payload: Payload val): Any tag => None
         
     fun ref chunk(data: (String val | Array[U8 val] val)) =>
         _out.print("chunk")
         _buffer.append(data)
+        _buffer.trim_in_place(_buffer.size())
 
-        try
-            _out.print("cutting the buffer")
-            let start_index: ISize = _buffer.find("{")
-            var end_index: ISize = start_index
-            var count: I32 = 0
-            while end_index.usize() < _buffer.size() do
-                if _buffer.at_offset(end_index) == '{' then
-                    _out.print("found {")
-                    count = count + 1
-                elseif _buffer.at_offset(end_index) == '}' then
-                    _out.print("found }")
-                    count = count - 1
-                end
-                end_index = end_index + 1
-            end
-            if count == 0 then
-                _out.print("hey matching {}")
-                // range is half open
-                let json = _buffer.substring(start_index, end_index + 1)
-                _out.print("substringed")
-                _buffer.trim_in_place((end_index + 1).usize(), _buffer.size())
-                _out.print("trimmed")
-                _out.print(consume json)
-            end
-        end
-
-        let buffer_copy = _buffer.clone()
-        _out.print("history")
-        _out.print(consume buffer_copy)
-
-    fun ref finished() =>
-        _out.print("finish!")
-
-    fun ref cancelled() =>
-        _out.print("cancell!")
-
-    fun ref throttled() =>
-        _out.print("throttle!")
-
-    fun ref unthrottled() =>
-        _out.print("unthrottle!")
-
-    fun ref need_body() =>
-        _out.print("need body!")
+    fun ref finished() => None
+    fun ref cancelled() => None
+    fun ref throttled() => None
+    fun ref unthrottled() => None
+    fun ref need_body() => None
 
