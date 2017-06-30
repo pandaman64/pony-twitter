@@ -139,40 +139,37 @@ class _HTTPHandler
         end
         _out.print("payload")
         object is Any end
-        
-    fun ref chunk(data: (String val | Array[U8 val] val)) =>
-        _out.print("chunk")
-        _buffer.append(data)
 
+    fun ref take_one_json(): (String | None) =>
         try
-            _out.print("cutting the buffer")
-            let start_index: ISize = _buffer.find("{")
-            var end_index: ISize = start_index
-            var count: I32 = 0
+            let start_index = _buffer.find("{")
+            var end_index = start_index
+            var count: USize = 0
             while end_index.usize() < _buffer.size() do
-                if _buffer.at_offset(end_index) == '{' then
-                    _out.print("found {")
+                if _buffer(end_index.usize()) == '{' then
                     count = count + 1
-                elseif _buffer.at_offset(end_index) == '}' then
-                    _out.print("found }")
+                elseif _buffer(end_index.usize()) == '}' then
                     count = count - 1
                 end
                 end_index = end_index + 1
-            end
-            if count == 0 then
-                _out.print("hey matching {}")
-                // range is half open
-                let json = _buffer.substring(start_index, end_index + 1)
-                _out.print("substringed")
-                _buffer.trim_in_place((end_index + 1).usize(), _buffer.size())
-                _out.print("trimmed")
-                _out.print(consume json)
+
+                if count == 0 then
+                    let json = _buffer.substring(start_index, end_index)
+                    _buffer.trim_in_place(end_index.usize())
+                    consume json
+                end
             end
         end
-
-        let buffer_copy = _buffer.clone()
-        _out.print("history")
-        _out.print(consume buffer_copy)
+        
+    fun ref chunk(data: (String val | Array[U8 val] val)) =>
+        _buffer.append(data)
+        
+        while true do
+            match take_one_json()
+            | let json: String => _out.print(consume json)
+            | None => break
+            end
+        end
 
     fun ref finished() =>
         _out.print("finish!")
