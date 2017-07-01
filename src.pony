@@ -1,6 +1,7 @@
 use "net/http"
 use "net/ssl"
 use "files"
+use "json"
 use "lib:oauth"
 
 // 0 -> OA_HMAC
@@ -166,7 +167,29 @@ class _HTTPHandler
         
         while true do
             match take_one_json()
-            | let json: String => _out.print(consume json)
+            | let j: String =>
+                try
+                    let json = recover ref JsonDoc end
+                    json.parse(j)
+                    try
+                        let tweet = json.data as JsonObject ref
+                        let user = tweet.data("user") as JsonObject ref
+                        let user_name = user.data("name") as String
+                        let screen_name = user.data("screen_name") as String
+                        let created_at = tweet.data("created_at") as String
+                        let text = tweet.data("text") as String
+                        _out.write(user_name)
+                        _out.write("@")
+                        _out.write(screen_name)
+                        _out.write("\t\t")
+                        _out.print(created_at)
+                        _out.print(text)
+                    else
+                        _out.print(json.string())
+                    end
+                else
+                    _out.print("parse failed")
+                end
             | None => break
             end
         end
