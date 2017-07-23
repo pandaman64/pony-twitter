@@ -69,10 +69,8 @@ actor Twitter
             String.from_cstring(consume url_cstring)
         end
 
-    be statuses_update(status: String) =>
-        let method = "POST"
-        let url = create_api_url(_api_root + "/statuses/update.json?status=" + status, method)
-
+    be request_api(api_url: String, method: String) =>
+        let url = create_api_url(api_url, method)
         try
             let client = HTTPClient(_auth, _ssl_context)
             let url' = URL.build(url)
@@ -81,19 +79,12 @@ actor Twitter
             request("User-Agent") = "Pony-Twitter"
             client(consume request, handler)
         end
+
+    be statuses_update(status: String) =>
+        request_api(_api_root + "/statuses/update.json?status=" + status, "GET")
 
     be stream_user() =>
-        let method = "GET"
-        let url: String val = create_api_url("https://userstream.twitter.com/1.1/user.json", method)
-
-        try
-            let client = HTTPClient(_auth, _ssl_context)
-            let url' = URL.build(url)
-            let handler = recover val this~create_handler() end
-            let request = Payload.request(method, url')
-            request("User-Agent") = "Pony-Twitter"
-            client(consume request, handler)
-        end
+        request_api("https://userstream.twitter.com/1.1/user.json", "POST")
 
     fun tag create_handler(session: HTTPSession tag): HTTPHandler =>
         _HTTPHandler(this~print_tweet())
