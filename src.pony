@@ -2,6 +2,7 @@ use "net/http"
 use "net/ssl"
 use "files"
 use "json"
+use "debug"
 use "lib:oauth"
 
 // 0 -> OA_HMAC
@@ -27,6 +28,9 @@ primitive SSLContextBuilder
             ctx.set_authority(cert_file)
             recover ctx end
         end
+
+interface JsonConsumer
+    fun apply(json: JsonDoc val)
 
 actor Twitter
     let _c_key: String
@@ -69,7 +73,7 @@ actor Twitter
         try
             let client = HTTPClient(_auth, _ssl_context)
             let url' = URL.build(url)
-            let handler = recover val this~create_handler(_out) end
+            let handler = recover val this~create_handler() end
             let request = Payload.request(method, url')
             request("User-Agent") = "Pony-Twitter"
             client(consume request, handler)
@@ -94,15 +98,32 @@ actor Twitter
         try
             let client = HTTPClient(_auth, _ssl_context)
             let url' = URL.build(url)
-            let handler = recover val this~create_handler(_out) end
+            let handler = recover val this~create_handler() end
             let request = Payload.request(method, url')
             request("User-Agent") = "Pony-Twitter"
             client(consume request, handler)
         end
 
-    fun tag create_handler(out: StdStream, session: HTTPSession tag): HTTPHandler =>
-        _HTTPHandler(out)
+    fun tag create_handler(session: HTTPSession tag): HTTPHandler =>
+        _HTTPHandler(this~print_tweet())
 
+    be print_tweet(json: JsonDoc val) =>
+        try
+            let tweet = json.data as JsonObject val
+            let user = tweet.data("user") as JsonObject val
+            let user_name = user.data("name") as String
+            let screen_name = user.data("screen_name") as String
+            let created_at = tweet.data("created_at") as String
+            let text = tweet.data("text") as String
+            _out.write(user_name)
+            _out.write("@")
+            _out.write(screen_name)
+            _out.write("\t\t")
+            _out.print(created_at)
+            _out.print(text)
+        else
+            Debug.out(json.string())
+        end
 
 actor Main
     new create(env: Env) =>
@@ -119,26 +140,28 @@ actor Main
 
    
 class _HTTPHandler
-    let _out: StdStream
     var _buffer: String ref
+    var _consumer: JsonConsumer
 
-    new create(out: StdStream) =>
-        _out = out
-        _buffer = recover "".clone() end
+    new create(consumer: JsonConsumer) =>
+        _buffer = String
+        _consumer = consumer
 
     fun ref apply(payload: Payload val): Any tag =>
-        _out.print(payload.status.string())
-        _out.print(payload.method)
+        Debug.out(payload.status.string())
+        Debug.out(payload.method)
         match payload.transfer_mode
         | ChunkedTransfer =>
             try
                 for b in payload.body().values() do
-                    _out.print("hig")
-                    _out.print(b)
+                    match b
+                    | let b': String => Debug.out(b')
+                    | let b': Array[U8] val => Debug.out(String.from_array(b'))
+                    end
                 end
             end
         end
-        _out.print("payload")
+        Debug.out("payload")
         object is Any end
 
     fun ref take_one_json(): (String | None) =>
@@ -169,43 +192,28 @@ class _HTTPHandler
             match take_one_json()
             | let j: String =>
                 try
-                    let json = recover ref JsonDoc end
+                    let json = JsonDoc
                     json.parse(j)
-                    try
-                        let tweet = json.data as JsonObject ref
-                        let user = tweet.data("user") as JsonObject ref
-                        let user_name = user.data("name") as String
-                        let screen_name = user.data("screen_name") as String
-                        let created_at = tweet.data("created_at") as String
-                        let text = tweet.data("text") as String
-                        _out.write(user_name)
-                        _out.write("@")
-                        _out.write(screen_name)
-                        _out.write("\t\t")
-                        _out.print(created_at)
-                        _out.print(text)
-                    else
-                        _out.print(json.string())
-                    end
+                    _consumer(consume json)
                 else
-                    _out.print("parse failed")
+                    Debug.out("parse failed")
                 end
             | None => break
             end
         end
 
     fun ref finished() =>
-        _out.print("finish!")
+        Debug.out("finish!")
 
     fun ref cancelled() =>
-        _out.print("cancell!")
+        Debug.out("cancell!")
 
     fun ref throttled() =>
-        _out.print("throttle!")
+        Debug.out("throttle!")
 
     fun ref unthrottled() =>
-        _out.print("unthrottle!")
+        Debug.out("unthrottle!")
 
     fun ref need_body() =>
-        _out.print("need body!")
+        Debug.out("need body!")
 
