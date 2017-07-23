@@ -54,11 +54,10 @@ actor Twitter
         _auth = auth
         _out = out
 
-    be statuses_update(status: String) =>
-        let method = "POST"
-        let url: String val = recover
+    fun create_api_url(api_url: String, method: String): String =>
+        recover
             let url_cstring = @oauth_sign_url2(
-                (_api_root + "/statuses/update.json?status=" + status).cstring(),
+                api_url.cstring(),
                 Pointer[Pointer[U8]],
                 0,
                 method.cstring(),
@@ -69,6 +68,10 @@ actor Twitter
             )
             String.from_cstring(consume url_cstring)
         end
+
+    be statuses_update(status: String) =>
+        let method = "POST"
+        let url = create_api_url(_api_root + "/statuses/update.json?status=" + status, method)
 
         try
             let client = HTTPClient(_auth, _ssl_context)
@@ -81,19 +84,7 @@ actor Twitter
 
     be stream_user() =>
         let method = "GET"
-        let url: String val = recover
-            let url_cstring = @oauth_sign_url2(
-                "https://userstream.twitter.com/1.1/user.json".cstring(),
-                Pointer[Pointer[U8]],
-                0,
-                method.cstring(),
-                _c_key.cstring(),
-                _c_sec.cstring(),
-                _t_key.cstring(),
-                _t_sec.cstring()
-            )
-            String.from_cstring(consume url_cstring)
-        end
+        let url: String val = create_api_url("https://userstream.twitter.com/1.1/user.json", method)
 
         try
             let client = HTTPClient(_auth, _ssl_context)
