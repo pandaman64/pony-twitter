@@ -3,6 +3,8 @@ use "net/ssl"
 use "files"
 use "json"
 use "debug"
+use "term"
+use "promises"
 use "lib:oauth"
 
 // 0 -> OA_HMAC
@@ -117,15 +119,22 @@ actor Main
             let t_sec = recover val file.line() end
 
             let twitter = Twitter(c_key, c_sec, t_key, t_sec, env.root as AmbientAuth, env.out)
-            //twitter.stream_user()
+            twitter.stream_user()
 
+	    
             let notify = object iso
-                fun ref apply(data: Array[U8] iso) =>
-                    twitter.statuses_update(String.from_array(consume data))
-                fun ref dispose() => None
+                fun ref apply(line: String, prompt: Promise[String]) =>
+                    prompt(line)
+                fun ref tab(line: String): Seq[String] box => Array[String]
             end
+            let terminal = ANSITerm(Readline(consume notify, env.out), env.input)
 
-            env.input(consume notify)
+            env.input(object iso
+                fun ref apply(bytes: Array[U8] iso) =>
+                    terminal.apply(consume bytes)
+                fun ref dispose() =>
+                    terminal.dispose()
+            end)
         end
    
 class _HTTPHandler
