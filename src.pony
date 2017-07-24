@@ -117,9 +117,16 @@ actor Main
             let t_sec = recover val file.line() end
 
             let twitter = Twitter(c_key, c_sec, t_key, t_sec, env.root as AmbientAuth, env.out)
-            twitter.stream_user()
-        end
+            //twitter.stream_user()
 
+            let notify = object iso
+                fun ref apply(data: Array[U8] iso) =>
+                    twitter.statuses_update(String.from_array(consume data))
+                fun ref dispose() => None
+            end
+
+            env.input(consume notify)
+        end
    
 class _HTTPHandler
     var _buffer: String ref
