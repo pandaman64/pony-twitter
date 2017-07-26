@@ -24,10 +24,10 @@ use @oauth_sign_url2[Pointer[U8] ref](
 primitive SSLContextBuilder
     fun get(auth: AmbientAuth): (SSLContext val | None) =>
         try
-            let cert_file = FilePath(auth, "cacert.pem")
+            let cert_file = FilePath(auth, "cacert.pem")?
             let ctx = recover iso SSLContext end
             ctx.set_client_verify(true)
-            ctx.set_authority(cert_file)
+            ctx.set_authority(cert_file)?
             recover ctx end
         end
 
@@ -75,11 +75,11 @@ actor Twitter
         let url = create_api_url(api_url, method)
         try
             let client = HTTPClient(_auth, _ssl_context)
-            let url' = URL.build(url)
+            let url' = URL.build(url)?
             let handler = recover val this~create_handler() end
             let request = Payload.request(method, url')
             request("User-Agent") = "Pony-Twitter"
-            client(consume request, handler)
+            client(consume request, handler)?
         end
 
     be statuses_update(status: String) =>
@@ -94,11 +94,11 @@ actor Twitter
     be print_tweet(json: JsonDoc val) =>
         try
             let tweet = json.data as JsonObject val
-            let user = tweet.data("user") as JsonObject val
-            let user_name = user.data("name") as String
-            let screen_name = user.data("screen_name") as String
-            let created_at = tweet.data("created_at") as String
-            let text = tweet.data("text") as String
+            let user = tweet.data("user")? as JsonObject val
+            let user_name = user.data("name")? as String
+            let screen_name = user.data("screen_name")? as String
+            let created_at = tweet.data("created_at")? as String
+            let text = tweet.data("text")? as String
             _out.write(user_name)
             _out.write("@")
             _out.write(screen_name)
@@ -112,11 +112,11 @@ actor Twitter
 actor Main
     new create(env: Env) =>
         try
-            let file = File(FilePath(env.root as AmbientAuth, "keys"))
-            let c_key = recover val file.line() end
-            let c_sec = recover val file.line() end
-            let t_key = recover val file.line() end
-            let t_sec = recover val file.line() end
+            let file = File(FilePath(env.root as AmbientAuth, "keys")?)
+            let c_key = recover val file.line()? end
+            let c_sec = recover val file.line()? end
+            let t_key = recover val file.line()? end
+            let t_sec = recover val file.line()? end
 
             let twitter = Twitter(c_key, c_sec, t_key, t_sec, env.root as AmbientAuth, env.out)
             twitter.stream_user()
@@ -151,7 +151,7 @@ class _HTTPHandler
         match payload.transfer_mode
         | ChunkedTransfer =>
             try
-                for b in payload.body().values() do
+                for b in payload.body()?.values() do
                     match b
                     | let b': String => Debug.out(b')
                     | let b': Array[U8] val => Debug.out(String.from_array(b'))
@@ -164,13 +164,13 @@ class _HTTPHandler
 
     fun ref take_one_json(): (String | None) =>
         try
-            let start_index = _buffer.find("{")
+            let start_index = _buffer.find("{")?
             var end_index = start_index
             var count: USize = 0
             while end_index.usize() < _buffer.size() do
-                if _buffer(end_index.usize()) == '{' then
+                if _buffer(end_index.usize())? == '{' then
                     count = count + 1
-                elseif _buffer(end_index.usize()) == '}' then
+                elseif _buffer(end_index.usize())? == '}' then
                     count = count - 1
                 end
                 end_index = end_index + 1
@@ -191,7 +191,7 @@ class _HTTPHandler
             | let j: String =>
                 try
                     let json = JsonDoc
-                    json.parse(j)
+                    json.parse(j)?
                     _consumer(consume json)
                 else
                     Debug.out("parse failed")
