@@ -83,7 +83,7 @@ actor Twitter
         end
 
     be statuses_update(status: String) =>
-        request_api(_api_root + "/statuses/update.json?status=" + status, "GET")
+        request_api(_api_root + "/statuses/update.json?status=" + status, "POST")
 
     be stream_user() =>
         request_api("https://userstream.twitter.com/1.1/user.json", "POST")
@@ -120,14 +120,15 @@ actor Main
 
             let twitter = Twitter(c_key, c_sec, t_key, t_sec, env.root as AmbientAuth, env.out)
             twitter.stream_user()
-
 	    
             let notify = object iso
                 fun ref apply(line: String, prompt: Promise[String]) =>
-                    prompt(line)
+                    twitter.statuses_update(line)
+                    prompt("tweet?>")
                 fun ref tab(line: String): Seq[String] box => Array[String]
             end
             let terminal = ANSITerm(Readline(consume notify, env.out), env.input)
+            terminal.prompt("tweet?>")
 
             env.input(object iso
                 fun ref apply(bytes: Array[U8] iso) =>
